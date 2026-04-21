@@ -2,18 +2,34 @@
 
 A pi extension for loading a Fizzy card into the session, turning it into an immediate build prompt, or starting with a plan-first prompt.
 
+Please note: This is fully vibe coded by pi itself.
+
+## Install
+
+### From npm
+
+```bash
+pi install npm:pi-fizzy
+```
+
+### From git
+
+```bash
+pi install git:github.com/denniseijpe/pi-fizzy
+```
+
 ## Commands
 
-- `/fizzy https://app.fizzy.do/6182909/cards/89`
+- `/fizzy https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the card, steps, and recent comments.
   - Stores it as the active Fizzy card on the session.
   - Injects the card details into the conversation context without starting work automatically.
   - Prompts the user with: `Fizzy card loaded. What do you want to do?`
-- `/fizzydo https://app.fizzy.do/6182909/cards/89`
+- `/fizzydo https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the card, steps, and recent comments.
   - Moves the card into `Doing` before immediate implementation starts, creating the column if needed.
   - Immediately sends a build prompt to pi.
-- `/fizzyplan https://app.fizzy.do/6182909/cards/89`
+- `/fizzyplan https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the same data.
   - Starts with planning instructions and explicitly tells pi not to edit files yet.
   - When pi later starts editing files for that card, the extension will try to move it into `Doing`, creating the column if needed.
@@ -110,24 +126,3 @@ In Fizzy:
 5. Give it permissions that cover the actions you want pi to perform.
 6. For `/fizzy`, `/fizzydo`, `/fizzyplan`, and `fizzy_get_card`, read access is enough.
 7. For `fizzy_add_comment`, `fizzy_move_to_column`, and `fizzy_mark_done`, the token also needs write access.
-
-## Install locally
-
-This package already has a `package.json` and pi manifest.
-
-Because it lives under `~/.pi/agent/extensions/fizzy/`, pi should auto-discover it. If pi is already running, use:
-
-```text
-/reload
-```
-
-## Package shape
-
-This folder is structured so it can be published later as an npm package:
-
-- `package.json`
-- `index.ts`
-- `src/`
-- `README.md`
-
-If you publish it later, keep the `pi.extensions` manifest entry pointing at `./index.ts`.
