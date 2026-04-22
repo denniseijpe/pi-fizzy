@@ -483,15 +483,9 @@ export const assignFizzyCardToSelf = async (
   const me = await fetchMyIdentity(baseUrl, token, signal);
   const alreadyAssigned = currentAssignees.some((user) => user.id === me.id);
 
-  await sendJson(
-    `${cardUrl}/assignments`,
-    "POST",
-    token,
-    { assignee_id: me.id },
-    signal,
-  );
+  await sendJson(`${cardUrl}/self_assignment`, "POST", token, {}, signal);
 
-  // Re-fetch card to determine final state since assignments endpoint is a toggle
+  // Re-fetch card to determine final state since the self-assignment endpoint toggles
   const refreshed = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
   const refreshedAssignees = getCardAssignees(refreshed);
   const nowAssigned = refreshedAssignees.some((user) => user.id === me.id);
@@ -528,20 +522,14 @@ export const ensureFizzyCardAssignedToSelf = async (
     };
   }
 
-  await sendJson(
-    `${cardUrl}/assignments`,
-    "POST",
-    token,
-    { assignee_id: me.id },
-    signal,
-  );
+  await sendJson(`${cardUrl}/self_assignment`, "POST", token, {}, signal);
 
   const refreshed = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
   const refreshedAssignees = getCardAssignees(refreshed);
   const nowAssigned = refreshedAssignees.some((user) => user.id === me.id);
 
   if (!nowAssigned) {
-    throw new Error("Fizzy did not report pi as assigned after the assignment request.");
+    throw new Error("Fizzy did not report pi as assigned after the self-assignment request.");
   }
 
   return {
