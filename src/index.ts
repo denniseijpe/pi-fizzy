@@ -8,6 +8,7 @@ import { Type } from "@sinclair/typebox";
 
 import {
   addFizzyComment,
+  assignFizzyCardToSelf,
   ensureFizzyCardInDoing,
   fetchFizzyCardSnapshot,
   markFizzyCardDone,
@@ -358,6 +359,43 @@ export default function fizzyExtension(pi: ExtensionAPI) {
         }],
         details: {
           closeResult,
+          snapshot,
+        },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "fizzy_assign",
+    label: "Fizzy Assign",
+    description: "Assign the current user (pi) to a Fizzy card. Uses the current Fizzy card in this session if no URL is provided. Toggles assignment, so calling it again will unassign.",
+    promptSnippet: "Assign pi to the current Fizzy card, or to a specific Fizzy card URL.",
+    promptGuidelines: [
+      "Use fizzy_assign when the user asks to assign themselves, take ownership, or pick up a Fizzy card.",
+      "If the user refers to the current Fizzy task, omit the URL and rely on session state.",
+      "This tool toggles assignment, so calling it again on an already-assigned card will unassign.",
+    ],
+    parameters: Type.Object({
+      url: Type.Optional(Type.String({
+        description: "Optional Fizzy card URL. If omitted, the tool uses the current Fizzy card stored on this session.",
+      })),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const sourceUrl = requireSourceUrl(params.url);
+      const assignResult = await assignFizzyCardToSelf(sourceUrl, pi, signal);
+      const snapshot = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
+      setActiveCard(snapshot, activeCard?.mode);
+
+      const text = assignResult.action === "assigned"
+        ? `Assigned ${assignResult.assignee.name} to Fizzy card #${snapshot.card.number}: ${snapshot.card.title}`
+        : assignResult.action === "already_assigned"
+        ? `${assignResult.assignee.name} is already assigned to Fizzy card #${snapshot.card.number}: ${snapshot.card.title}`
+        : `Unassigned ${assignResult.assignee.name} from Fizzy card #${snapshot.card.number}: ${snapshot.card.title}`;
+
+      return {
+        content: [{ type: "text", text }],
+        details: {
+          assignResult,
           snapshot,
         },
       };

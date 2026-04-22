@@ -104,3 +104,9 @@ export interface FizzyMoveToColumnResult {
 export interface FizzyEnsureDoingResult extends FizzyMoveToColumnResult {
   action: "already_in_doing" | "created_and_moved" | "moved";
 }
+
+export interface FizzyAssignResult {
+  action: "assigned" | "already_assigned" | "unassigned";
+  assignee: FizzyUser;
+  sourceUrl: string;
+}

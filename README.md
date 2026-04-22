@@ -57,6 +57,11 @@ pi install git:github.com/denniseijpe/pi-fizzy
   - Marks a card done in Fizzy.
   - Uses the current session's active Fizzy card when no URL is provided.
 
+- `fizzy_assign`
+  - Assigns the current user (pi) to a Fizzy card.
+  - Uses the current session's active Fizzy card when no URL is provided.
+  - Toggles assignment: calling it again on an already-assigned card will unassign.
+
 ## Session behavior
 
 When you run `/fizzy`, `/fizzydo`, or `/fizzyplan`, the extension stores the current Fizzy card on the pi session.
@@ -125,4 +130,4 @@ In Fizzy:
 4. Generate a new token.
 5. Give it permissions that cover the actions you want pi to perform.
 6. For `/fizzy`, `/fizzydo`, `/fizzyplan`, and `fizzy_get_card`, read access is enough.
-7. For `fizzy_add_comment`, `fizzy_move_to_column`, and `fizzy_mark_done`, the token also needs write access.
+7. For `fizzy_add_comment`, `fizzy_move_to_column`, `fizzy_mark_done`, and `fizzy_assign`, the token also needs write access.
