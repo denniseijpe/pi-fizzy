@@ -1,6 +1,6 @@
 {
   "name": "pi-fizzy",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Pi extension for fetching Fizzy.do cards and turning them into build or plan prompts.",
   "author": "Dennis Eijpe",
   "license": "MIT",

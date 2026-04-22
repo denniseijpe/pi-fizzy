@@ -12,9 +12,10 @@ import type {
   FizzyColumn,
   FizzyComment,
   FizzyCommentCreateResult,
+  FizzyAssignResult,
+  FizzyEnsureAssignedResult,
   FizzyEnsureDoingResult,
   FizzyMoveToColumnResult,
-  FizzyAssignResult,
   FizzyUser,
 } from "./types";
 
@@ -462,6 +463,14 @@ const fetchMyIdentity = async (
   throw new Error("Fizzy identity response did not contain a user.");
 };
 
+const getCardAssignees = (snapshot: FizzyCardSnapshot): FizzyUser[] => {
+  return Array.isArray((snapshot.card as Record<string, unknown>).assignees)
+    ? ((snapshot.card as Record<string, unknown>).assignees as unknown[])
+        .filter((assignee): assignee is Record<string, unknown> => isRecord(assignee))
+        .map((assignee) => normalizeUser(assignee))
+    : [];
+};
+
 export const assignFizzyCardToSelf = async (
   sourceUrl: string,
   pi: ExtensionAPI,
@@ -470,16 +479,11 @@ export const assignFizzyCardToSelf = async (
   const { cardUrl, reference, token, baseUrl } = await resolveCardRequestContext(sourceUrl, pi);
   const snapshot = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
 
-  const currentAssignees: FizzyUser[] = Array.isArray((snapshot.card as Record<string, unknown>).assignees)
-    ? ((snapshot.card as Record<string, unknown>).assignees as unknown[])
-        .filter((a): a is Record<string, unknown> => isRecord(a))
-        .map((a) => normalizeUser(a))
-    : [];
-
+  const currentAssignees = getCardAssignees(snapshot);
   const me = await fetchMyIdentity(baseUrl, token, signal);
-  const alreadyAssigned = currentAssignees.some((u) => u.id === me.id);
+  const alreadyAssigned = currentAssignees.some((user) => user.id === me.id);
 
-  const response = await sendJson(
+  await sendJson(
     `${cardUrl}/assignments`,
     "POST",
     token,
@@ -489,12 +493,8 @@ export const assignFizzyCardToSelf = async (
 
   // Re-fetch card to determine final state since assignments endpoint is a toggle
   const refreshed = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
-  const refreshedAssignees: FizzyUser[] = Array.isArray((refreshed.card as Record<string, unknown>).assignees)
-    ? ((refreshed.card as Record<string, unknown>).assignees as unknown[])
-        .filter((a): a is Record<string, unknown> => isRecord(a))
-        .map((a) => normalizeUser(a))
-    : [];
-  const nowAssigned = refreshedAssignees.some((u) => u.id === me.id);
+  const refreshedAssignees = getCardAssignees(refreshed);
+  const nowAssigned = refreshedAssignees.some((user) => user.id === me.id);
 
   return {
     action: alreadyAssigned && !nowAssigned
@@ -504,6 +504,48 @@ export const assignFizzyCardToSelf = async (
         ? "already_assigned"
         : "assigned"
       : "unassigned",
+    assignee: me,
+    sourceUrl: reference.url,
+  };
+};
+
+export const ensureFizzyCardAssignedToSelf = async (
+  sourceUrl: string,
+  pi: ExtensionAPI,
+  signal?: AbortSignal,
+): Promise<FizzyEnsureAssignedResult> => {
+  const { cardUrl, reference, token, baseUrl } = await resolveCardRequestContext(sourceUrl, pi);
+  const snapshot = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
+  const currentAssignees = getCardAssignees(snapshot);
+  const me = await fetchMyIdentity(baseUrl, token, signal);
+  const alreadyAssigned = currentAssignees.some((user) => user.id === me.id);
+
+  if (alreadyAssigned) {
+    return {
+      action: "already_assigned",
+      assignee: me,
+      sourceUrl: reference.url,
+    };
+  }
+
+  await sendJson(
+    `${cardUrl}/assignments`,
+    "POST",
+    token,
+    { assignee_id: me.id },
+    signal,
+  );
+
+  const refreshed = await fetchFizzyCardSnapshot(sourceUrl, pi, signal);
+  const refreshedAssignees = getCardAssignees(refreshed);
+  const nowAssigned = refreshedAssignees.some((user) => user.id === me.id);
+
+  if (!nowAssigned) {
+    throw new Error("Fizzy did not report pi as assigned after the assignment request.");
+  }
+
+  return {
+    action: "assigned",
     assignee: me,
     sourceUrl: reference.url,
   };

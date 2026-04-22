@@ -9,6 +9,7 @@ import { Type } from "@sinclair/typebox";
 import {
   addFizzyComment,
   assignFizzyCardToSelf,
+  ensureFizzyCardAssignedToSelf,
   ensureFizzyCardInDoing,
   fetchFizzyCardSnapshot,
   markFizzyCardDone,
@@ -47,6 +48,7 @@ const queueUserMessage = (
 
 export default function fizzyExtension(pi: ExtensionAPI) {
   let activeCard: ActiveFizzyCardState | null = null;
+  let assignedForSourceUrl: string | null = null;
   let doingEnsuredForSourceUrl: string | null = null;
   let overlay: FizzyOverlay | null = null;
   let overlayHandle: OverlayHandle | null = null;
@@ -99,6 +101,7 @@ export default function fizzyExtension(pi: ExtensionAPI) {
     mode?: FizzyMode,
   ): ActiveFizzyCardState => {
     activeCard = persistActiveFizzyCard(pi, snapshot, mode);
+    assignedForSourceUrl = null;
     doingEnsuredForSourceUrl = null;
     syncOverlay();
     return activeCard;
@@ -106,6 +109,7 @@ export default function fizzyExtension(pi: ExtensionAPI) {
 
   const restoreState = (ctx: ExtensionContext): void => {
     activeCard = restoreActiveFizzyCard(ctx);
+    assignedForSourceUrl = null;
     doingEnsuredForSourceUrl = null;
     syncOverlay();
   };
@@ -139,25 +143,36 @@ export default function fizzyExtension(pi: ExtensionAPI) {
       return;
     }
 
-    if (doingEnsuredForSourceUrl === resolvedSourceUrl) {
+    if (doingEnsuredForSourceUrl !== resolvedSourceUrl) {
+      try {
+        const result = await ensureFizzyCardInDoing(resolvedSourceUrl, pi, ctx.signal);
+        doingEnsuredForSourceUrl = resolvedSourceUrl;
+
+        if (result.action === "created_and_moved") {
+          ctx.ui.notify("Created Fizzy column \"Doing\" and moved the card there.", "info");
+        } else if (result.action === "moved") {
+          ctx.ui.notify("Moved the Fizzy card to the Doing column.", "info");
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.ui.notify(`Could not move Fizzy card to Doing: ${message}`, "warning");
+      }
+    }
+
+    if (assignedForSourceUrl === resolvedSourceUrl) {
       return;
     }
 
     try {
-      const result = await ensureFizzyCardInDoing(resolvedSourceUrl, pi, ctx.signal);
-      doingEnsuredForSourceUrl = resolvedSourceUrl;
+      const result = await ensureFizzyCardAssignedToSelf(resolvedSourceUrl, pi, ctx.signal);
+      assignedForSourceUrl = resolvedSourceUrl;
 
-      if (result.action === "created_and_moved") {
-        ctx.ui.notify("Created Fizzy column \"Doing\" and moved the card there.", "info");
-        return;
-      }
-
-      if (result.action === "moved") {
-        ctx.ui.notify("Moved the Fizzy card to the Doing column.", "info");
+      if (result.action === "assigned") {
+        ctx.ui.notify(`Assigned the Fizzy card to ${result.assignee.name}.`, "info");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      ctx.ui.notify(`Could not move Fizzy card to Doing: ${message}`, "warning");
+      ctx.ui.notify(`Could not assign Fizzy card to pi: ${message}`, "warning");
     }
   };
 

@@ -101,12 +101,20 @@ export interface FizzyMoveToColumnResult {
   sourceUrl: string;
 }
 
-export interface FizzyEnsureDoingResult extends FizzyMoveToColumnResult {
+export interface FizzyEnsureDoingResult {
   action: "already_in_doing" | "created_and_moved" | "moved";
+  column: FizzyColumn;
+  sourceUrl: string;
 }
 
 export interface FizzyAssignResult {
   action: "assigned" | "already_assigned" | "unassigned";
+  assignee: FizzyUser;
+  sourceUrl: string;
+}
+
+export interface FizzyEnsureAssignedResult {
+  action: "assigned" | "already_assigned";
   assignee: FizzyUser;
   sourceUrl: string;
 }

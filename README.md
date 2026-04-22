@@ -28,11 +28,12 @@ pi install git:github.com/denniseijpe/pi-fizzy
 - `/fizzydo https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the card, steps, and recent comments.
   - Moves the card into `Doing` before immediate implementation starts, creating the column if needed.
+  - Assigns the card to pi when work starts.
   - Immediately sends a build prompt to pi.
 - `/fizzyplan https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the same data.
   - Starts with planning instructions and explicitly tells pi not to edit files yet.
-  - When pi later starts editing files for that card, the extension will try to move it into `Doing`, creating the column if needed.
+  - When pi later starts editing files for that card, the extension will move it into `Doing` if needed and assign it to pi.
 - `/fizzycurrent`
   - Shows the current active Fizzy card stored on the session.
 
@@ -68,7 +69,7 @@ When you run `/fizzy`, `/fizzydo`, or `/fizzyplan`, the extension stores the cur
 
 If pi is running with a TUI, the extension also shows a small non-blocking overlay in the top-right corner with the current card number and a truncated title.
 
-When pi starts actively working on a card, the extension also tries to move the card into a `Doing` column. If that column does not exist yet, it creates it first.
+When pi starts actively working on a card, the extension also tries to move the card into a `Doing` column and assign it to pi. If that column does not exist yet, it creates it first.
 
 That means later prompts like:
 
