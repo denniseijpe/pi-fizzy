@@ -4,12 +4,11 @@ import type {
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
 import type { OverlayHandle, TUI } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 
 import {
   addFizzyComment,
   assignFizzyCardToSelf,
-  ensureFizzyCardAssignedToSelf,
   ensureFizzyCardInDoing,
   fetchFizzyCardSnapshot,
   markFizzyCardDone,
@@ -48,7 +47,6 @@ const queueUserMessage = (
 
 export default function fizzyExtension(pi: ExtensionAPI) {
   let activeCard: ActiveFizzyCardState | null = null;
-  let assignedForSourceUrl: string | null = null;
   let doingEnsuredForSourceUrl: string | null = null;
   let overlay: FizzyOverlay | null = null;
   let overlayHandle: OverlayHandle | null = null;
@@ -101,7 +99,6 @@ export default function fizzyExtension(pi: ExtensionAPI) {
     mode?: FizzyMode,
   ): ActiveFizzyCardState => {
     activeCard = persistActiveFizzyCard(pi, snapshot, mode);
-    assignedForSourceUrl = null;
     doingEnsuredForSourceUrl = null;
     syncOverlay();
     return activeCard;
@@ -109,7 +106,6 @@ export default function fizzyExtension(pi: ExtensionAPI) {
 
   const restoreState = (ctx: ExtensionContext): void => {
     activeCard = restoreActiveFizzyCard(ctx);
-    assignedForSourceUrl = null;
     doingEnsuredForSourceUrl = null;
     syncOverlay();
   };
@@ -139,40 +135,22 @@ export default function fizzyExtension(pi: ExtensionAPI) {
     sourceUrl?: string,
   ): Promise<void> => {
     const resolvedSourceUrl = sourceUrl?.trim() || activeCard?.sourceUrl;
-    if (!resolvedSourceUrl) {
-      return;
-    }
-
-    if (doingEnsuredForSourceUrl !== resolvedSourceUrl) {
-      try {
-        const result = await ensureFizzyCardInDoing(resolvedSourceUrl, pi, ctx.signal);
-        doingEnsuredForSourceUrl = resolvedSourceUrl;
-
-        if (result.action === "created_and_moved") {
-          ctx.ui.notify("Created Fizzy column \"Doing\" and moved the card there.", "info");
-        } else if (result.action === "moved") {
-          ctx.ui.notify("Moved the Fizzy card to the Doing column.", "info");
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        ctx.ui.notify(`Could not move Fizzy card to Doing: ${message}`, "warning");
-      }
-    }
-
-    if (assignedForSourceUrl === resolvedSourceUrl) {
+    if (!resolvedSourceUrl || doingEnsuredForSourceUrl === resolvedSourceUrl) {
       return;
     }
 
     try {
-      const result = await ensureFizzyCardAssignedToSelf(resolvedSourceUrl, pi, ctx.signal);
-      assignedForSourceUrl = resolvedSourceUrl;
+      const result = await ensureFizzyCardInDoing(resolvedSourceUrl, pi, ctx.signal);
+      doingEnsuredForSourceUrl = resolvedSourceUrl;
 
-      if (result.action === "assigned") {
-        ctx.ui.notify(`Assigned the Fizzy card to ${result.assignee.name}.`, "info");
+      if (result.action === "created_and_moved") {
+        ctx.ui.notify("Created Fizzy column \"Doing\" and moved the card there.", "info");
+      } else if (result.action === "moved") {
+        ctx.ui.notify("Moved the Fizzy card to the Doing column.", "info");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      ctx.ui.notify(`Could not assign Fizzy card to pi: ${message}`, "warning");
+      ctx.ui.notify(`Could not move Fizzy card to Doing: ${message}`, "warning");
     }
   };
 
@@ -202,7 +180,7 @@ export default function fizzyExtension(pi: ExtensionAPI) {
       setActiveCard(snapshot, mode);
       pi.setSessionName(buildSessionName(snapshot));
 
-      if (mode === "build") {
+      if (mode === "build" || mode === "plan") {
         await ensureDoingColumnForActiveCard(ctx, snapshot.sourceUrl);
       }
 
@@ -230,18 +208,6 @@ export default function fizzyExtension(pi: ExtensionAPI) {
       ctx.ui.notify(`Fizzy failed: ${message}`, "error");
     }
   };
-
-  pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName !== "edit" && event.toolName !== "write") {
-      return;
-    }
-
-    if (!activeCard || activeCard.mode === "build") {
-      return;
-    }
-
-    await ensureDoingColumnForActiveCard(ctx);
-  });
 
   pi.registerTool({
     name: "fizzy_get_card",
