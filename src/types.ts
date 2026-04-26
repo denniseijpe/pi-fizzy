@@ -85,6 +85,19 @@ export interface FizzyCardSnapshot {
   sourceUrl: string;
 }
 
+export interface FizzyAccountIdentity {
+  id: string;
+  name: string;
+  slug: string;
+  user: FizzyUser;
+}
+
+export interface FizzyAssignedTask {
+  account: FizzyAccountIdentity;
+  card: FizzyCard;
+  sourceUrl: string;
+}
+
 export interface FizzyCommentCreateResult {
   comment: FizzyComment;
   sourceUrl: string;

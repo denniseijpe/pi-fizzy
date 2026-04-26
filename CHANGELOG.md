@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- Added autocomplete for `/fizzy`, `/fizzydo`, and `/fizzyplan` arguments. Completions search recent assigned Fizzy cards by number, title, account, and column, then insert the selected card URL.
+- Added `/fizzylist` to show a centered modal of the latest 20 Fizzy tasks assigned to the account. Loads the selected task using the same flow as `/fizzy <url>`.
+
 ## 0.2.3
 
 - Stopped checking Fizzy assignment automatically after `edit` and `write` tool calls.

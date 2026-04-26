@@ -25,16 +25,23 @@ pi install git:github.com/denniseijpe/pi-fizzy
   - Stores it as the active Fizzy card on the session.
   - Injects the card details into the conversation context without starting work automatically.
   - Prompts the user with: `Fizzy card loaded. What do you want to do?`
+  - Supports autocomplete: type `/fizzy <query>` and press Tab to search recent assigned cards.
 - `/fizzydo https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the card, steps, and recent comments.
   - Moves the card into `Doing` before immediate implementation starts, creating the column if needed.
   - Immediately sends a build prompt to pi.
+  - Supports autocomplete: type `/fizzydo <query>` and press Tab to search recent assigned cards.
 - `/fizzyplan https://app.fizzy.do/projectid/cards/cardid`
   - Fetches the same data.
   - Moves the card into `Doing` before planning starts, creating the column if needed.
   - Starts with planning instructions and explicitly tells pi not to edit files yet.
+  - Supports autocomplete: type `/fizzyplan <query>` and press Tab to search recent assigned cards.
 - `/fizzycurrent`
   - Shows the current active Fizzy card stored on the session.
+- `/fizzylist`
+  - Shows a centered modal with the latest 20 Fizzy tasks assigned to the account.
+  - Select an entry with ↑/↓ and press Enter to load it, equivalent to `/fizzy <url>`.
+  - The modal scrolls within the available terminal height instead of overflowing.
 
 ## Extra tools
 

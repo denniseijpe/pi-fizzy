@@ -3,7 +3,12 @@ import type {
   ExtensionCommandContext,
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
-import type { OverlayHandle, TUI } from "@mariozechner/pi-tui";
+import {
+  fuzzyFilter,
+  type AutocompleteItem,
+  type OverlayHandle,
+  type TUI,
+} from "@mariozechner/pi-tui";
 import { Type } from "typebox";
 
 import {
@@ -11,9 +16,11 @@ import {
   assignFizzyCardToSelf,
   ensureFizzyCardInDoing,
   fetchFizzyCardSnapshot,
+  fetchLatestAssignedFizzyTasks,
   markFizzyCardDone,
   moveFizzyCardToColumn,
 } from "./fizzy-api";
+import { FizzyListModal } from "./fizzy-list-modal";
 import { FizzyOverlay } from "./fizzy-overlay";
 import {
   buildBuildPrompt,
@@ -27,9 +34,13 @@ import {
   restoreActiveFizzyCard,
   type ActiveFizzyCardState,
 } from "./session-state";
-import type { FizzyCardSnapshot } from "./types";
+import type { FizzyAssignedTask, FizzyCardSnapshot } from "./types";
 
 type FizzyMode = "build" | "load" | "plan";
+
+const CARD_COMPLETION_LIMIT = 50;
+const MAX_CARD_COMPLETIONS = 20;
+const CARD_COMPLETION_CACHE_MS = 30_000;
 
 const queueUserMessage = (
   pi: ExtensionAPI,
@@ -51,6 +62,92 @@ export default function fizzyExtension(pi: ExtensionAPI) {
   let overlay: FizzyOverlay | null = null;
   let overlayHandle: OverlayHandle | null = null;
   let overlayTui: TUI | null = null;
+  let cardCompletionCache:
+    | { fetchedAt: number; promise: Promise<FizzyAssignedTask[]> }
+    | null = null;
+
+  const getCardCompletionTasks = (): Promise<FizzyAssignedTask[]> => {
+    const now = Date.now();
+
+    if (
+      cardCompletionCache
+      && now - cardCompletionCache.fetchedAt < CARD_COMPLETION_CACHE_MS
+    ) {
+      return cardCompletionCache.promise;
+    }
+
+    const promise = fetchLatestAssignedFizzyTasks(
+      pi,
+      undefined,
+      CARD_COMPLETION_LIMIT,
+    ).catch((error: unknown) => {
+      if (cardCompletionCache?.promise === promise) {
+        cardCompletionCache = null;
+      }
+      throw error;
+    });
+
+    cardCompletionCache = { fetchedAt: now, promise };
+    return promise;
+  };
+
+  const taskToAutocompleteItem = (task: FizzyAssignedTask): AutocompleteItem => {
+    const column = task.card.column?.name?.trim();
+    const descriptionParts = [task.card.title, task.account.name];
+    if (column) {
+      descriptionParts.push(column);
+    }
+
+    return {
+      description: descriptionParts.join(" · "),
+      label: `#${task.card.number}`,
+      value: task.sourceUrl,
+    };
+  };
+
+  const filterCardCompletionTasks = (
+    tasks: FizzyAssignedTask[],
+    query: string,
+  ): FizzyAssignedTask[] => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return tasks.slice(0, MAX_CARD_COMPLETIONS);
+    }
+
+    if (/^#?\d+$/.test(trimmedQuery)) {
+      const numericQuery = trimmedQuery.replace(/^#/, "");
+      const numericMatches = tasks.filter((task) => {
+        return String(task.card.number).startsWith(numericQuery);
+      });
+
+      if (numericMatches.length > 0) {
+        return numericMatches.slice(0, MAX_CARD_COMPLETIONS);
+      }
+    }
+
+    return fuzzyFilter(tasks, trimmedQuery, (task) => {
+      const column = task.card.column?.name ?? "";
+      return `${task.card.number} ${task.card.title} ${task.account.name} ${column}`;
+    }).slice(0, MAX_CARD_COMPLETIONS);
+  };
+
+  const getCardArgumentCompletions = async (
+    prefix: string,
+  ): Promise<AutocompleteItem[] | null> => {
+    if (/^https?:\/\//.test(prefix.trim())) {
+      return null;
+    }
+
+    try {
+      const tasks = await getCardCompletionTasks();
+      const matches = filterCardCompletionTasks(tasks, prefix);
+      const items = matches.map(taskToAutocompleteItem);
+
+      return items.length > 0 ? items : null;
+    } catch {
+      return null;
+    }
+  };
 
   const syncOverlay = (): void => {
     if (!overlay) {
@@ -401,13 +498,52 @@ export default function fizzyExtension(pi: ExtensionAPI) {
 
   pi.registerCommand("fizzy", {
     description: "Fetch a Fizzy card and store it on the session without starting work",
+    getArgumentCompletions: getCardArgumentCompletions,
     handler: async (args, ctx) => {
       await startFromFizzy("load", args, ctx);
     },
   });
 
+  pi.registerCommand("fizzylist", {
+    description: "Show the latest 20 Fizzy tasks assigned to the account",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("/fizzylist requires interactive mode.", "error");
+        return;
+      }
+
+      ctx.ui.notify("Fetching Fizzy tasks...", "info");
+
+      try {
+        const tasks = await fetchLatestAssignedFizzyTasks(pi, ctx.signal, 20);
+        const selectedUrl = await ctx.ui.custom<string | null>(
+          (tui, theme, _keybindings, done) => {
+            return new FizzyListModal(tasks, theme, tui, done);
+          },
+          {
+            overlay: true,
+            overlayOptions: {
+              anchor: "center",
+              maxHeight: "80%",
+              minWidth: 54,
+              width: "76%",
+            },
+          },
+        );
+
+        if (selectedUrl) {
+          await startFromFizzy("load", selectedUrl, ctx);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.ui.notify(`Could not fetch Fizzy tasks: ${message}`, "error");
+      }
+    },
+  });
+
   pi.registerCommand("fizzydo", {
     description: "Fetch a Fizzy card and immediately start implementing it",
+    getArgumentCompletions: getCardArgumentCompletions,
     handler: async (args, ctx) => {
       await startFromFizzy("build", args, ctx);
     },
@@ -415,6 +551,7 @@ export default function fizzyExtension(pi: ExtensionAPI) {
 
   pi.registerCommand("fizzyplan", {
     description: "Fetch a Fizzy card and start by producing an implementation plan",
+    getArgumentCompletions: getCardArgumentCompletions,
     handler: async (args, ctx) => {
       await startFromFizzy("plan", args, ctx);
     },

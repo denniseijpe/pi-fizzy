@@ -5,6 +5,8 @@ import {
   resolveConfiguredSecret,
 } from "./auth";
 import type {
+  FizzyAccountIdentity,
+  FizzyAssignedTask,
   FizzyCard,
   FizzyCardReference,
   FizzyCardSnapshot,
@@ -204,6 +206,29 @@ const normalizeUser = (value: unknown): FizzyUser => {
   }
 
   return value as FizzyUser;
+};
+
+const normalizeAccountIdentity = (value: unknown): FizzyAccountIdentity => {
+  if (!isRecord(value)) {
+    throw new Error("Fizzy account response was not an object.");
+  }
+
+  const id = typeof value.id === "string" ? value.id : "";
+  const name = typeof value.name === "string" ? value.name : "";
+  const rawSlug = typeof value.slug === "string" ? value.slug : "";
+
+  if (!id || !name || !rawSlug || !isRecord(value.user)) {
+    throw new Error("Fizzy account response was missing id, name, slug, or user.");
+  }
+
+  const slug = rawSlug.startsWith("/") ? rawSlug : `/${rawSlug}`;
+
+  return {
+    id,
+    name,
+    slug,
+    user: normalizeUser(value.user),
+  };
 };
 
 const normalizeColumn = (value: unknown): FizzyColumn => {
@@ -442,25 +467,70 @@ export const ensureFizzyCardInDoing = async (
   };
 };
 
-const fetchMyIdentity = async (
+const fetchMyAccounts = async (
   baseUrl: string,
   token: string,
   signal?: AbortSignal,
-): Promise<FizzyUser> => {
+): Promise<FizzyAccountIdentity[]> => {
   const payload = await fetchJson(`${baseUrl}/my/identity`, createHeaders(token), signal);
 
   if (!isRecord(payload) || !Array.isArray(payload.accounts)) {
     throw new Error("Fizzy identity response did not contain accounts.");
   }
 
-  for (const account of payload.accounts) {
-    if (!isRecord(account) || !isRecord(account.user)) {
-      continue;
-    }
-    return normalizeUser(account.user);
+  return payload.accounts.map((account) => normalizeAccountIdentity(account));
+};
+
+const fetchMyIdentity = async (
+  baseUrl: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<FizzyUser> => {
+  const accounts = await fetchMyAccounts(baseUrl, token, signal);
+
+  if (!accounts[0]) {
+    throw new Error("Fizzy identity response did not contain a user.");
   }
 
-  throw new Error("Fizzy identity response did not contain a user.");
+  return accounts[0].user;
+};
+
+export const fetchLatestAssignedFizzyTasks = async (
+  pi: ExtensionAPI,
+  signal?: AbortSignal,
+  limit: number = 10,
+): Promise<FizzyAssignedTask[]> => {
+  const auth = await loadFizzyAuthConfig();
+  const token = await resolveConfiguredSecret(auth.key, pi);
+  const baseUrl = auth.baseUrl ?? "https://app.fizzy.do";
+  const accounts = await fetchMyAccounts(baseUrl, token, signal);
+  const headers = createHeaders(token);
+  const tasks: FizzyAssignedTask[] = [];
+
+  for (const account of accounts) {
+    const cardsUrl = new URL(`${baseUrl}${account.slug}/cards`);
+    cardsUrl.searchParams.set("per_page", String(limit));
+
+    const payload = await fetchJson(cardsUrl.toString(), headers, signal);
+    const cards = ensureArray<unknown>(payload).map((card) => normalizeCard(card));
+
+    for (const card of cards) {
+      tasks.push({
+        account,
+        card,
+        sourceUrl: `${baseUrl}${account.slug}/cards/${card.number}`,
+      });
+    }
+  }
+
+  return tasks
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.card.last_active_at ?? left.card.created_at ?? "");
+      const rightTime = Date.parse(right.card.last_active_at ?? right.card.created_at ?? "");
+      return (Number.isNaN(rightTime) ? 0 : rightTime)
+        - (Number.isNaN(leftTime) ? 0 : leftTime);
+    })
+    .slice(0, limit);
 };
 
 const getCardAssignees = (snapshot: FizzyCardSnapshot): FizzyUser[] => {
