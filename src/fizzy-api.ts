@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import {
   loadFizzyAuthConfig,
@@ -7,6 +7,7 @@ import {
 import type {
   FizzyAccountIdentity,
   FizzyAssignedTask,
+  FizzyBoard,
   FizzyCard,
   FizzyCardReference,
   FizzyCardSnapshot,
@@ -205,7 +206,11 @@ const normalizeUser = (value: unknown): FizzyUser => {
     throw new Error("Fizzy user response was missing id or name.");
   }
 
-  return value as FizzyUser;
+  return {
+    ...value,
+    id,
+    name,
+  };
 };
 
 const normalizeAccountIdentity = (value: unknown): FizzyAccountIdentity => {
@@ -231,6 +236,25 @@ const normalizeAccountIdentity = (value: unknown): FizzyAccountIdentity => {
   };
 };
 
+const normalizeBoard = (value: unknown): FizzyBoard => {
+  if (!isRecord(value)) {
+    throw new Error("Fizzy board response was not an object.");
+  }
+
+  const id = typeof value.id === "string" ? value.id : "";
+  const name = typeof value.name === "string" ? value.name : "";
+
+  if (!id || !name) {
+    throw new Error("Fizzy board response was missing id or name.");
+  }
+
+  return {
+    ...value,
+    id,
+    name,
+  };
+};
+
 const normalizeColumn = (value: unknown): FizzyColumn => {
   if (!isRecord(value)) {
     throw new Error("Fizzy column response was not an object.");
@@ -243,7 +267,11 @@ const normalizeColumn = (value: unknown): FizzyColumn => {
     throw new Error("Fizzy column response was missing id or name.");
   }
 
-  return value as FizzyColumn;
+  return {
+    ...value,
+    id,
+    name,
+  };
 };
 
 const normalizeCard = (value: unknown): FizzyCard => {
@@ -262,7 +290,16 @@ const normalizeCard = (value: unknown): FizzyCard => {
     throw new Error("Fizzy card response was missing id, number, or url.");
   }
 
-  return value as FizzyCard;
+  const board = normalizeBoard(value.board);
+
+  return {
+    ...value,
+    board,
+    id,
+    number,
+    title,
+    url,
+  };
 };
 
 const resolveCardRequestContext = async (
@@ -534,10 +571,8 @@ export const fetchLatestAssignedFizzyTasks = async (
 };
 
 const getCardAssignees = (snapshot: FizzyCardSnapshot): FizzyUser[] => {
-  return Array.isArray((snapshot.card as Record<string, unknown>).assignees)
-    ? ((snapshot.card as Record<string, unknown>).assignees as unknown[])
-        .filter((assignee): assignee is Record<string, unknown> => isRecord(assignee))
-        .map((assignee) => normalizeUser(assignee))
+  return Array.isArray(snapshot.card.assignees)
+    ? snapshot.card.assignees.map((assignee) => normalizeUser(assignee))
     : [];
 };
 

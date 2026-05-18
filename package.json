@@ -1,6 +1,6 @@
 {
   "name": "pi-fizzy",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pi extension for fetching Fizzy.do cards and turning them into build or plan prompts.",
   "author": "Dennis Eijpe",
   "license": "MIT",
@@ -24,9 +24,12 @@
       "./index.ts"
     ]
   },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
   "scripts": {

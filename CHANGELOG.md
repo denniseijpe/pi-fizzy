@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Updated pi runtime imports and peer dependencies from `@mariozechner/*` to the current `@earendil-works/*` package scope.
+- Declared Node.js `>=22.19.0` to match current pi's supported runtime floor.
+
 ## 0.3.0
 
 - Added autocomplete for `/fizzy`, `/fizzydo`, and `/fizzyplan` arguments. Completions search recent assigned Fizzy cards by number, title, account, and column, then insert the selected card URL.

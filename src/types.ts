@@ -55,6 +55,7 @@ export interface FizzyComment {
 }
 
 export interface FizzyCard {
+  assignees?: FizzyUser[];
   board: FizzyBoard;
   closed?: boolean;
   column?: FizzyColumn;

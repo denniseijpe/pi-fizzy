@@ -1,4 +1,4 @@
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
   Key,
   matchesKey,
@@ -6,7 +6,7 @@ import {
   visibleWidth,
   type Component,
   type TUI,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 
 import type { FizzyAssignedTask } from "./types";
 
